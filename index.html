@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MyBrabusPlayer - IPTV & Xtream</title>
+    <title>MyBrabusPlayer - IPTV, Xtream & Stalker</title>
     <style>
         body { background: #111; color: #fff; font-family: sans-serif; text-align: center; padding: 10px; margin: 0; }
         video { width: 100%; max-width: 800px; height: auto; border: 2px solid #333; background: #000; margin-top: 10px; position: sticky; top: 0; z-index: 100; }
@@ -18,7 +18,10 @@
         ul { list-style: none; padding: 0; margin: 0; }
         li { padding: 10px; margin: 5px 0; background: #333; cursor: pointer; border-radius: 5px; transition: background 0.2s; }
         li:hover { background: #444; }
-        .tab-btn { display: inline-block; width: 48%; padding: 10px; background: #444; border: none; color: #fff; cursor: pointer; border-radius: 5px; margin-bottom: 10px; }
+        
+        /* Tab Navigation Anpassung für 3 Tabs */
+        .tabs-wrapper { display: flex; justify-content: space-between; gap: 5px; margin-bottom: 10px; }
+        .tab-btn { flex: 1; padding: 10px 5px; background: #444; border: none; color: #fff; cursor: pointer; border-radius: 5px; font-size: 14px; }
         .tab-btn.active { background: #e67e22; }
         .hidden { display: none; }
     </style>
@@ -31,10 +34,11 @@
     <video id="videoPlayer" controls autoplay playsinline></video>
 
     <div class="container">
-        <!-- Auswahl-Tabs (Upload vs Xtream Codes) -->
-        <div style="display: flex; justify-content: space-between;">
-            <button class="tab-btn active" onclick="switchTab('upload')">📂 M3U Datei</button>
-            <button class="tab-btn" onclick="switchTab('xtream')">⚡ Xtream Codes</button>
+        <!-- Auswahl-Tabs (Upload vs Xtream vs Stalker) -->
+        <div class="tabs-wrapper">
+            <button class="tab-btn active" onclick="switchTab('upload', event)">📂 M3U</button>
+            <button class="tab-btn" onclick="switchTab('xtream', event)">⚡ Xtream</button>
+            <button class="tab-btn" onclick="switchTab('stalker', event)">🖥️ Stalker</button>
         </div>
 
         <!-- Tab 1: M3U Upload -->
@@ -52,6 +56,14 @@
             <button onclick="loginXtream()">Verbinden & Laden</button>
         </div>
 
+        <!-- Tab 3: Stalker Portal Login -->
+        <div id="stalkerTab" class="card hidden">
+            <h3>Stalker Portal (MAC Login)</h3>
+            <input type="text" id="stalkerUrl" placeholder="Portal URL (z.B. http://portal.server.com:8080/c/)">
+            <input type="text" id="stalkerMac" placeholder="MAC-Adresse (z.B. 00:1A:79:XX:XX:XX)" value="00:1A:79:">
+            <button onclick="loginStalker()">Stalker Verbinden</button>
+        </div>
+
         <!-- Sektionen / Sparten Auswahl -->
         <div id="sectionsNav" class="hidden" style="margin-bottom: 15px;">
             <select id="mediaTypeSelect" onchange="changeMediaType()">
@@ -64,25 +76,31 @@
 
     <!-- Sender- und Inhaltsliste -->
     <div class="container" id="playlistContainer">
-        <p style="text-align: center; color: #777;">Bitte lade eine Datei hoch oder verbinde dich mit einem Xtream Server.</p>
+        <p style="text-align: center; color: #777;">Bitte wähle eine Methode oben aus, um zu starten.</p>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script>
         let hls = null;
-        let xtreamData = { live: [], movie: [], series: [] };
-        let currentXtreamCreds = {};
+        let activeData = { live: [], movie: [], series: [] };
 
-        function switchTab(tab) {
+        function switchTab(tab, event) {
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('uploadTab').classList.add('hidden');
+            document.getElementById('xtreamTab').classList.add('hidden');
+            document.getElementById('stalkerTab').classList.add('hidden');
+            
             if (tab === 'upload') {
                 document.getElementById('uploadTab').classList.remove('hidden');
-                document.getElementById('xtreamTab').classList.add('hidden');
                 document.getElementById('sectionsNav').classList.add('hidden');
-                event.target.classList.add('active');
-            } else {
-                document.getElementById('uploadTab').classList.add('hidden');
+                document.getElementById('playlistContainer').innerHTML = '<p style="text-align: center; color: #777;">Lade eine M3U-Datei hoch.</p>';
+            } else if (tab === 'xtream') {
                 document.getElementById('xtreamTab').classList.remove('hidden');
+            } else if (tab === 'stalker') {
+                document.getElementById('stalkerTab').classList.remove('hidden');
+            }
+            
+            if (event && event.target) {
                 event.target.classList.add('active');
             }
         }
@@ -114,6 +132,9 @@
                     categories[currentCategory].push({ title: currentTitle, url: line });
                 }
             }
+            
+            activeData.live = categories;
+            document.getElementById('sectionsNav').classList.add('hidden');
             displayCategories(categories);
         }
 
@@ -124,44 +145,43 @@
             const password = document.getElementById('xtreamPass').value.trim();
 
             if (!url || !username || !password) {
-                alert("Bitte alle Felder ausfüllen!");
+                alert("Bitte alle Xtream Felder ausfüllen!");
                 return;
             }
             if (!url.endsWith('/')) url += '/';
-            currentXtreamCreds = { url, username, password };
 
-            document.getElementById('playlistContainer').innerHTML = '<p style="text-align: center;">Lade Daten vom Server...</p>';
+            document.getElementById('playlistContainer').innerHTML = '<p style="text-align: center;">Lade Xtream Daten vom Server...</p>';
 
             try {
-                // Live Streams laden
+                // Live Streams & Kategorien
                 let liveRes = await fetch(`${url}player_api.php?username=${username}&password=${password}&action=get_live_streams`);
                 let liveStreams = await liveRes.json();
-                
                 let liveCatRes = await fetch(`${url}player_api.php?username=${username}&password=${password}&action=get_live_categories`);
                 let liveCats = await liveCatRes.json();
-                
-                xtreamData.live = formatXtreamContent(liveStreams, liveCats, `${url}live/${username}/${password}/`);
+                activeData.live = formatXtreamContent(liveStreams, liveCats, `${url}live/${username}/${password}/`);
 
-                // Filme laden
+                // VOD / Filme & Kategorien
                 let vodRes = await fetch(`${url}player_api.php?username=${username}&password=${password}&action=get_vod_streams`);
                 let vodStreams = await vodRes.json();
-                
                 let vodCatRes = await fetch(`${url}player_api.php?username=${username}&password=${password}&action=get_vod_categories`);
                 let vodCats = await vodCatRes.json();
-                
-                xtreamData.movie = formatXtreamContent(vodStreams, vodCats, `${url}movie/${username}/${password}/`, true);
+                activeData.movie = formatXtreamContent(vodStreams, vodCats, `${url}movie/${username}/${password}/`, true);
 
                 document.getElementById('sectionsNav').classList.remove('hidden');
+                document.getElementById('mediaTypeSelect.value = 'live'');
                 changeMediaType();
             } catch (e) {
-                alert("Fehler bei der Verbindung. Möglicherweise blockiert CORS den Zugriff im Browser!");
+                alert("Fehler bei der Xtream Verbindung. (Evtl. CORS-Blockade im Browser?)");
                 console.error(e);
+                document.getElementById('playlistContainer').innerHTML = '<p style="text-align: center; color: red;">Verbindung fehlgeschlagen.</p>';
             }
         }
 
         function formatXtreamContent(items, categories, streamBaseUrl, isMovie = false) {
             let catMap = {};
-            categories.forEach(c => catMap[c.category_id] = c.category_name);
+            if (Array.isArray(categories)) {
+                categories.forEach(c => catMap[c.category_id] = c.category_name);
+            }
 
             let grouped = {};
             if (Array.isArray(items)) {
@@ -178,9 +198,24 @@
             return grouped;
         }
 
+        // --- STALKER PORTAL LOGIK (Vorbereitung / Hinweis) ---
+        function loginStalker() {
+            let url = document.getElementById('stalkerUrl').value.trim();
+            let mac = document.getElementById('stalkerMac').value.trim();
+
+            if (!url || !mac) {
+                alert("Bitte Portal URL und MAC-Adresse eingeben!");
+                return;
+            }
+
+            // Stalker-Portale verlangen standardmäßig Server-Handshakes und MAC-Header, 
+            // die in reinem Browser-JavaScript fast immer durch CORS blockiert werden.
+            alert("Hinweis: Stalker-Portale nutzen Middleware-Handshakes, die im Browser meistens durch CORS blockiert werden. Für den vollen Stalker-Support empfiehlt sich meist eine Desktop-Umgebung. Versuche alternativ die Xtream-Zugangsdaten desselben Anbieters.");
+        }
+
         function changeMediaType() {
             let type = document.getElementById('mediaTypeSelect').value;
-            displayCategories(xtreamData[type] || {});
+            displayCategories(activeData[type] || {});
         }
 
         // --- GEMEINSAME ANZEIGE & PLAYER ---
@@ -190,7 +225,7 @@
 
             let hasContent = false;
             for (let cat in categories) {
-                if (categories[cat].length === 0) continue;
+                if (!categories[cat] || categories[cat].length === 0) continue;
                 hasContent = true;
 
                 let catDiv = document.createElement('div');
@@ -221,7 +256,7 @@
             var video = document.getElementById('videoPlayer');
             if (hls) hls.destroy();
 
-            if (Hls.isSupported() && url.includes('.m3u8')) {
+            if (Hls.isSupported() && (url.includes('.m3u8') || url.includes('/live/'))) {
                 hls = new Hls();
                 hls.loadSource(url);
                 hls.attachMedia(video);
@@ -234,5 +269,6 @@
     </script>
 </body>
 </html>
+
 
 
