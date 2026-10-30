@@ -3,51 +3,96 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mein IPTV Player mit M3U Upload</title>
+    <title>MyBrabusPlayer - IPTV & Xtream</title>
     <style>
-        body { background: #111; color: #fff; font-family: sans-serif; text-align: center; padding: 20px; }
-        video { width: 100%; max-width: 800px; border: 2px solid #333; background: #000; margin-top: 15px; position: sticky; top: 10px; z-index: 10; }
-        .upload-box { background: #222; padding: 15px; border-radius: 8px; margin-bottom: 20px; max-width: 800px; margin-left: auto; margin-right: auto; }
-        input[type="file"] { color: #fff; padding: 10px; }
-        .playlist-container { width: 100%; max-width: 800px; margin: 20px auto; text-align: left; }
-        .category { background: #222; margin-bottom: 15px; padding: 10px 15px; border-radius: 8px; }
-        .category h3 { color: #f39c12; border-bottom: 1px solid #444; padding-bottom: 5px; margin-top: 5px; }
+        body { background: #111; color: #fff; font-family: sans-serif; text-align: center; padding: 10px; margin: 0; }
+        video { width: 100%; max-width: 800px; height: auto; border: 2px solid #333; background: #000; margin-top: 10px; position: sticky; top: 0; z-index: 100; }
+        .container { width: 100%; max-width: 800px; margin: 15px auto; text-align: left; }
+        .card { background: #222; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
+        .card h3 { color: #f39c12; margin-top: 0; border-bottom: 1px solid #444; padding-bottom: 5px; }
+        input, select, button { width: 100%; padding: 10px; margin: 8px 0; background: #333; color: #fff; border: 1px solid #444; border-radius: 5px; box-sizing: border-box; font-size: 16px; }
+        button { background: #e67e22; font-weight: bold; cursor: pointer; border: none; }
+        button:hover { background: #d35400; }
+        .category { background: #222; margin-bottom: 10px; padding: 10px; border-radius: 8px; }
+        .category h4 { color: #3498db; margin: 5px 0; border-bottom: 1px solid #444; padding-bottom: 3px; }
         ul { list-style: none; padding: 0; margin: 0; }
-        li { padding: 10px; margin: 6px 0; background: #333; cursor: pointer; border-radius: 5px; transition: background 0.2s; }
+        li { padding: 10px; margin: 5px 0; background: #333; cursor: pointer; border-radius: 5px; transition: background 0.2s; }
         li:hover { background: #444; }
+        .tab-btn { display: inline-block; width: 48%; padding: 10px; background: #444; border: none; color: #fff; cursor: pointer; border-radius: 5px; margin-bottom: 10px; }
+        .tab-btn.active { background: #e67e22; }
+        .hidden { display: none; }
     </style>
 </head>
 <body>
 
-    <h1>Mein IPTV Player</h1>
+    <h1>MyBrabusPlayer</h1>
 
-    <!-- M3U Datei vom Handy/PC hochladen -->
-    <div class="upload-box">
-        <h3>📂 M3U Playlist hochladen</h3>
-        <input type="file" id="m3uFile" accept=".m3u,.m3u8" onchange="loadM3U(event)">
+    <!-- Video Player (Sticky & mit Vollbild-Support) -->
+    <video id="videoPlayer" controls autoplay playsinline></video>
+
+    <div class="container">
+        <!-- Auswahl-Tabs (Upload vs Xtream Codes) -->
+        <div style="display: flex; justify-content: space-between;">
+            <button class="tab-btn active" onclick="switchTab('upload')">📂 M3U Datei</button>
+            <button class="tab-btn" onclick="switchTab('xtream')">⚡ Xtream Codes</button>
+        </div>
+
+        <!-- Tab 1: M3U Upload -->
+        <div id="uploadTab" class="card">
+            <h3>M3U Playlist hochladen</h3>
+            <input type="file" id="m3uFile" accept=".m3u,.m3u8" onchange="loadM3U(event)">
+        </div>
+
+        <!-- Tab 2: Xtream Codes Login -->
+        <div id="xtreamTab" class="card hidden">
+            <h3>Xtream Codes Login</h3>
+            <input type="text" id="xtreamUrl" placeholder="Server URL (z.B. http://line.server.com:8080)">
+            <input type="text" id="xtreamUser" placeholder="Benutzername">
+            <input type="password" id="xtreamPass" placeholder="Passwort">
+            <button onclick="loginXtream()">Verbinden & Laden</button>
+        </div>
+
+        <!-- Sektionen / Sparten Auswahl -->
+        <div id="sectionsNav" class="hidden" style="margin-bottom: 15px;">
+            <select id="mediaTypeSelect" onchange="changeMediaType()">
+                <option value="live">📺 Live TV</option>
+                <option value="movie">🎬 Filme (VOD)</option>
+                <option value="series">📺 Serien</option>
+            </select>
+        </div>
     </div>
-    
-    <!-- Der Video-Player -->
-    <video id="videoPlayer" controls autoplay></video>
 
-    <!-- Hier erscheinen die Sender automatisch -->
-    <div class="playlist-container" id="playlistContainer">
-        <p style="text-align: center; color: #777;">Bitte lade eine M3U-Datei hoch, um die Sender anzuzeigen.</p>
+    <!-- Sender- und Inhaltsliste -->
+    <div class="container" id="playlistContainer">
+        <p style="text-align: center; color: #777;">Bitte lade eine Datei hoch oder verbinde dich mit einem Xtream Server.</p>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script>
         let hls = null;
+        let xtreamData = { live: [], movie: [], series: [] };
+        let currentXtreamCreds = {};
 
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            if (tab === 'upload') {
+                document.getElementById('uploadTab').classList.remove('hidden');
+                document.getElementById('xtreamTab').classList.add('hidden');
+                document.getElementById('sectionsNav').classList.add('hidden');
+                event.target.classList.add('active');
+            } else {
+                document.getElementById('uploadTab').classList.add('hidden');
+                document.getElementById('xtreamTab').classList.remove('hidden');
+                event.target.classList.add('active');
+            }
+        }
+
+        // --- M3U LOGIK ---
         function loadM3U(event) {
             const file = event.target.files[0];
             if (!file) return;
-
             const reader = new FileReader();
-            reader.onload = function(e) {
-                const content = e.target.result;
-                parseM3U(content);
-            };
+            reader.onload = function(e) { parseM3U(e.target.result); };
             reader.readAsText(file);
         }
 
@@ -55,46 +100,105 @@
             const lines = data.split('\n');
             let categories = {};
             let currentCategory = "Allgemein";
-            let currentTitle = "";
+            let currentTitle = "Stream";
 
-            for (let i = 0; i < lines.length; i++) {
-                let line = lines[i].trim();
-                
+            for (let line of lines) {
+                line = line.trim();
                 if (line.startsWith('#EXTINF:')) {
-                    // Titel und Gruppe (Sparte) auslesen
                     let groupMatch = line.match(/group-title="([^"]+)"/);
-                    if (groupMatch) {
-                        currentCategory = groupMatch[1];
-                    } else {
-                        currentCategory = "Allgemein";
-                    }
-
+                    currentCategory = groupMatch ? groupMatch[1] : "Allgemein";
                     let parts = line.split(',');
-                    currentTitle = parts.length > 1 ? parts[parts.length - 1] : "Unbekannter Sender";
+                    currentTitle = parts.length > 1 ? parts[parts.length - 1] : "Stream";
                 } else if (line && !line.startsWith('#')) {
-                    // Das ist der Stream-Link
-                    let url = line;
-                    if (!categories[currentCategory]) {
-                        categories[currentCategory] = [];
-                    }
-                    categories[currentCategory].push({ title: currentTitle, url: url });
+                    if (!categories[currentCategory]) categories[currentCategory] = [];
+                    categories[currentCategory].push({ title: currentTitle, url: line });
                 }
             }
-
-            displayPlaylist(categories);
+            displayCategories(categories);
         }
 
-        function displayPlaylist(categories) {
+        // --- XTREAM CODES LOGIK ---
+        async function loginXtream() {
+            let url = document.getElementById('xtreamUrl').value.trim();
+            const username = document.getElementById('xtreamUser').value.trim();
+            const password = document.getElementById('xtreamPass').value.trim();
+
+            if (!url || !username || !password) {
+                alert("Bitte alle Felder ausfüllen!");
+                return;
+            }
+            if (!url.endsWith('/')) url += '/';
+            currentXtreamCreds = { url, username, password };
+
+            document.getElementById('playlistContainer').innerHTML = '<p style="text-align: center;">Lade Daten vom Server...</p>';
+
+            try {
+                // Live Streams laden
+                let liveRes = await fetch(`${url}player_api.php?username=${username}&password=${password}&action=get_live_streams`);
+                let liveStreams = await liveRes.json();
+                
+                let liveCatRes = await fetch(`${url}player_api.php?username=${username}&password=${password}&action=get_live_categories`);
+                let liveCats = await liveCatRes.json();
+                
+                xtreamData.live = formatXtreamContent(liveStreams, liveCats, `${url}live/${username}/${password}/`);
+
+                // Filme laden
+                let vodRes = await fetch(`${url}player_api.php?username=${username}&password=${password}&action=get_vod_streams`);
+                let vodStreams = await vodRes.json();
+                
+                let vodCatRes = await fetch(`${url}player_api.php?username=${username}&password=${password}&action=get_vod_categories`);
+                let vodCats = await vodCatRes.json();
+                
+                xtreamData.movie = formatXtreamContent(vodStreams, vodCats, `${url}movie/${username}/${password}/`, true);
+
+                document.getElementById('sectionsNav').classList.remove('hidden');
+                changeMediaType();
+            } catch (e) {
+                alert("Fehler bei der Verbindung. Möglicherweise blockiert CORS den Zugriff im Browser!");
+                console.error(e);
+            }
+        }
+
+        function formatXtreamContent(items, categories, streamBaseUrl, isMovie = false) {
+            let catMap = {};
+            categories.forEach(c => catMap[c.category_id] = c.category_name);
+
+            let grouped = {};
+            if (Array.isArray(items)) {
+                items.forEach(item => {
+                    let catName = catMap[item.category_id] || "Allgemein";
+                    if (!grouped[catName]) grouped[catName] = [];
+                    
+                    let ext = isMovie ? (item.container_extension || 'mp4') : '';
+                    let streamUrl = `${streamBaseUrl}${item.stream_id}.${ext}`;
+                    
+                    grouped[catName].push({ title: item.name, url: streamUrl });
+                });
+            }
+            return grouped;
+        }
+
+        function changeMediaType() {
+            let type = document.getElementById('mediaTypeSelect').value;
+            displayCategories(xtreamData[type] || {});
+        }
+
+        // --- GEMEINSAME ANZEIGE & PLAYER ---
+        function displayCategories(categories) {
             const container = document.getElementById('playlistContainer');
             container.innerHTML = '';
 
+            let hasContent = false;
             for (let cat in categories) {
+                if (categories[cat].length === 0) continue;
+                hasContent = true;
+
                 let catDiv = document.createElement('div');
                 catDiv.className = 'category';
                 
-                let h3 = document.createElement('h3');
-                h3.innerText = "📺 " + cat;
-                catDiv.appendChild(h3);
+                let h4 = document.createElement('h4');
+                h4.innerText = "📁 " + cat;
+                catDiv.appendChild(h4);
 
                 let ul = document.createElement('ul');
                 categories[cat].forEach(item => {
@@ -107,30 +211,28 @@
                 catDiv.appendChild(ul);
                 container.appendChild(catDiv);
             }
+
+            if (!hasContent) {
+                container.innerHTML = '<p style="text-align: center; color: #777;">Keine Inhalte gefunden.</p>';
+            }
         }
 
         function changeStream(url) {
             var video = document.getElementById('videoPlayer');
-            if (hls) {
-                hls.destroy();
-            }
+            if (hls) hls.destroy();
 
-            if (Hls.isSupported()) {
+            if (Hls.isSupported() && url.includes('.m3u8')) {
                 hls = new Hls();
                 hls.loadSource(url);
                 hls.attachMedia(video);
-                hls.on(Hls.Events.MANIFEST_PARSED, function() {
-                    video.play();
-                });
-            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
+            } else {
                 video.src = url;
-                video.addEventListener('loadedmetadata', function() {
-                    video.play();
-                });
+                video.play().catch(e => console.log("Autoplay blockiert:", e));
             }
         }
     </script>
-
 </body>
 </html>
+
 
