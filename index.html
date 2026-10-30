@@ -3,32 +3,114 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mein IPTV Player</title>
+    <title>Mein IPTV Player mit M3U Upload</title>
     <style>
-        body { background: #111; color: #fff; font-family: sans-serif; text-align: center; padding-top: 50px; }
-        video { width: 80%; max-width: 800px; border: 2px solid #333; background: #000; }
-        input, button { padding: 10px; margin: 5px; font-size: 16px; }
+        body { background: #111; color: #fff; font-family: sans-serif; text-align: center; padding: 20px; }
+        video { width: 100%; max-width: 800px; border: 2px solid #333; background: #000; margin-top: 15px; position: sticky; top: 10px; z-index: 10; }
+        .upload-box { background: #222; padding: 15px; border-radius: 8px; margin-bottom: 20px; max-width: 800px; margin-left: auto; margin-right: auto; }
+        input[type="file"] { color: #fff; padding: 10px; }
+        .playlist-container { width: 100%; max-width: 800px; margin: 20px auto; text-align: left; }
+        .category { background: #222; margin-bottom: 15px; padding: 10px 15px; border-radius: 8px; }
+        .category h3 { color: #f39c12; border-bottom: 1px solid #444; padding-bottom: 5px; margin-top: 5px; }
+        ul { list-style: none; padding: 0; margin: 0; }
+        li { padding: 10px; margin: 6px 0; background: #333; cursor: pointer; border-radius: 5px; transition: background 0.2s; }
+        li:hover { background: #444; }
     </style>
 </head>
 <body>
 
-    <h1>Mein Eigener IPTV Web Player</h1>
-    
-    <input type="text" id="streamUrl" placeholder="Hier Stream-Link (.m3u8) einfügen" style="width: 60%;">
-    <button onclick="playStream()">Abspielen</button>
-    <br><br>
+    <h1>Mein IPTV Player</h1>
 
+    <!-- M3U Datei vom Handy/PC hochladen -->
+    <div class="upload-box">
+        <h3>📂 M3U Playlist hochladen</h3>
+        <input type="file" id="m3uFile" accept=".m3u,.m3u8" onchange="loadM3U(event)">
+    </div>
+    
+    <!-- Der Video-Player -->
     <video id="videoPlayer" controls autoplay></video>
+
+    <!-- Hier erscheinen die Sender automatisch -->
+    <div class="playlist-container" id="playlistContainer">
+        <p style="text-align: center; color: #777;">Bitte lade eine M3U-Datei hoch, um die Sender anzuzeigen.</p>
+    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script>
-        let hls = null; // Globale Variable für den HLS-Player
+        let hls = null;
 
-        function playStream() {
+        function loadM3U(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const content = e.target.result;
+                parseM3U(content);
+            };
+            reader.readAsText(file);
+        }
+
+        function parseM3U(data) {
+            const lines = data.split('\n');
+            let categories = {};
+            let currentCategory = "Allgemein";
+            let currentTitle = "";
+
+            for (let i = 0; i < lines.length; i++) {
+                let line = lines[i].trim();
+                
+                if (line.startsWith('#EXTINF:')) {
+                    // Titel und Gruppe (Sparte) auslesen
+                    let groupMatch = line.match(/group-title="([^"]+)"/);
+                    if (groupMatch) {
+                        currentCategory = groupMatch[1];
+                    } else {
+                        currentCategory = "Allgemein";
+                    }
+
+                    let parts = line.split(',');
+                    currentTitle = parts.length > 1 ? parts[parts.length - 1] : "Unbekannter Sender";
+                } else if (line && !line.startsWith('#')) {
+                    // Das ist der Stream-Link
+                    let url = line;
+                    if (!categories[currentCategory]) {
+                        categories[currentCategory] = [];
+                    }
+                    categories[currentCategory].push({ title: currentTitle, url: url });
+                }
+            }
+
+            displayPlaylist(categories);
+        }
+
+        function displayPlaylist(categories) {
+            const container = document.getElementById('playlistContainer');
+            container.innerHTML = '';
+
+            for (let cat in categories) {
+                let catDiv = document.createElement('div');
+                catDiv.className = 'category';
+                
+                let h3 = document.createElement('h3');
+                h3.innerText = "📺 " + cat;
+                catDiv.appendChild(h3);
+
+                let ul = document.createElement('ul');
+                categories[cat].forEach(item => {
+                    let li = document.createElement('li');
+                    li.innerText = item.title;
+                    li.onclick = () => changeStream(item.url);
+                    ul.appendChild(li);
+                });
+
+                catDiv.appendChild(ul);
+                container.appendChild(catDiv);
+            }
+        }
+
+        function changeStream(url) {
             var video = document.getElementById('videoPlayer');
-            var url = document.getElementById('streamUrl').value;
-            
-            // Alten HLS-Player zerstören, falls bereits einer lief
             if (hls) {
                 hls.destroy();
             }
@@ -40,11 +122,7 @@
                 hls.on(Hls.Events.MANIFEST_PARSED, function() {
                     video.play();
                 });
-                hls.on(Hls.Events.ERROR, function(event, data) {
-                    console.error("HLS Fehler:", data);
-                });
             } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                // Für Safari / iOS
                 video.src = url;
                 video.addEventListener('loadedmetadata', function() {
                     video.play();
@@ -55,3 +133,4 @@
 
 </body>
 </html>
+
