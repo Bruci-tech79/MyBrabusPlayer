@@ -23,7 +23,7 @@
         .tabs-wrapper { display: flex; justify-content: space-between; gap: 5px; margin-bottom: 10px; }
         .tab-btn { flex: 1; padding: 10px 5px; background: #444; border: none; color: #fff; cursor: pointer; border-radius: 5px; font-size: 14px; }
         .tab-btn.active { background: #e67e22; }
-        .hidden { display: none; }
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
@@ -85,23 +85,26 @@
         let activeData = { live: [], movie: [], series: [] };
 
         function switchTab(tab, event) {
+            // Alle Tabs deaktivieren und verstecken
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             document.getElementById('uploadTab').classList.add('hidden');
             document.getElementById('xtreamTab').classList.add('hidden');
             document.getElementById('stalkerTab').classList.add('hidden');
             
+            // Den ausgewählten Tab anzeigen
             if (tab === 'upload') {
                 document.getElementById('uploadTab').classList.remove('hidden');
                 document.getElementById('sectionsNav').classList.add('hidden');
-                document.getElementById('playlistContainer').innerHTML = '<p style="text-align: center; color: #777;">Lade eine M3U-Datei hoch.</p>';
             } else if (tab === 'xtream') {
                 document.getElementById('xtreamTab').classList.remove('hidden');
             } else if (tab === 'stalker') {
                 document.getElementById('stalkerTab').classList.remove('hidden');
+                document.getElementById('sectionsNav').classList.add('hidden');
             }
             
-            if (event && event.target) {
-                event.target.classList.add('active');
+            // Aktiven Button hervorheben
+            if (event && event.currentTarget) {
+                event.currentTarget.classList.add('active');
             }
         }
 
@@ -153,14 +156,12 @@
             document.getElementById('playlistContainer').innerHTML = '<p style="text-align: center;">Lade Xtream Daten vom Server...</p>';
 
             try {
-                // Live Streams & Kategorien
                 let liveRes = await fetch(`${url}player_api.php?username=${username}&password=${password}&action=get_live_streams`);
                 let liveStreams = await liveRes.json();
                 let liveCatRes = await fetch(`${url}player_api.php?username=${username}&password=${password}&action=get_live_categories`);
                 let liveCats = await liveCatRes.json();
                 activeData.live = formatXtreamContent(liveStreams, liveCats, `${url}live/${username}/${password}/`);
 
-                // VOD / Filme & Kategorien
                 let vodRes = await fetch(`${url}player_api.php?username=${username}&password=${password}&action=get_vod_streams`);
                 let vodStreams = await vodRes.json();
                 let vodCatRes = await fetch(`${url}player_api.php?username=${username}&password=${password}&action=get_vod_categories`);
@@ -168,7 +169,7 @@
                 activeData.movie = formatXtreamContent(vodStreams, vodCats, `${url}movie/${username}/${password}/`, true);
 
                 document.getElementById('sectionsNav').classList.remove('hidden');
-                document.getElementById('mediaTypeSelect.value = 'live'');
+                document.getElementById('mediaTypeSelect').value = 'live';
                 changeMediaType();
             } catch (e) {
                 alert("Fehler bei der Xtream Verbindung. (Evtl. CORS-Blockade im Browser?)");
@@ -198,7 +199,7 @@
             return grouped;
         }
 
-        // --- STALKER PORTAL LOGIK (Vorbereitung / Hinweis) ---
+        // --- STALKER PORTAL LOGIK ---
         function loginStalker() {
             let url = document.getElementById('stalkerUrl').value.trim();
             let mac = document.getElementById('stalkerMac').value.trim();
@@ -208,8 +209,6 @@
                 return;
             }
 
-            // Stalker-Portale verlangen standardmäßig Server-Handshakes und MAC-Header, 
-            // die in reinem Browser-JavaScript fast immer durch CORS blockiert werden.
             alert("Hinweis: Stalker-Portale nutzen Middleware-Handshakes, die im Browser meistens durch CORS blockiert werden. Für den vollen Stalker-Support empfiehlt sich meist eine Desktop-Umgebung. Versuche alternativ die Xtream-Zugangsdaten desselben Anbieters.");
         }
 
@@ -269,6 +268,7 @@
     </script>
 </body>
 </html>
+
 
 
 
