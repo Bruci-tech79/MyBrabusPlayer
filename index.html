@@ -19,7 +19,6 @@
         li { padding: 10px; margin: 5px 0; background: #333; cursor: pointer; border-radius: 5px; transition: background 0.2s; }
         li:hover { background: #444; }
         
-        /* Tab Navigation Anpassung für 3 Tabs */
         .tabs-wrapper { display: flex; justify-content: space-between; gap: 5px; margin-bottom: 10px; }
         .tab-btn { flex: 1; padding: 10px 5px; background: #444; border: none; color: #fff; cursor: pointer; border-radius: 5px; font-size: 14px; }
         .tab-btn.active { background: #e67e22; }
@@ -30,11 +29,10 @@
 
     <h1>MyBrabusPlayer</h1>
 
-    <!-- Video Player (Sticky & mit Vollbild-Support) -->
     <video id="videoPlayer" controls autoplay playsinline></video>
 
     <div class="container">
-        <!-- Auswahl-Tabs (Upload vs Xtream vs Stalker) -->
+        <!-- Auswahl-Tabs -->
         <div class="tabs-wrapper">
             <button class="tab-btn active" onclick="switchTab('upload', event)">📂 M3U</button>
             <button class="tab-btn" onclick="switchTab('xtream', event)">⚡ Xtream</button>
@@ -74,7 +72,6 @@
         </div>
     </div>
 
-    <!-- Sender- und Inhaltsliste -->
     <div class="container" id="playlistContainer">
         <p style="text-align: center; color: #777;">Bitte wähle eine Methode oben aus, um zu starten.</p>
     </div>
@@ -85,13 +82,11 @@
         let activeData = { live: [], movie: [], series: [] };
 
         function switchTab(tab, event) {
-            // Alle Tabs deaktivieren und verstecken
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             document.getElementById('uploadTab').classList.add('hidden');
             document.getElementById('xtreamTab').classList.add('hidden');
             document.getElementById('stalkerTab').classList.add('hidden');
             
-            // Den ausgewählten Tab anzeigen
             if (tab === 'upload') {
                 document.getElementById('uploadTab').classList.remove('hidden');
                 document.getElementById('sectionsNav').classList.add('hidden');
@@ -102,7 +97,6 @@
                 document.getElementById('sectionsNav').classList.add('hidden');
             }
             
-            // Aktiven Button hervorheben
             if (event && event.currentTarget) {
                 event.currentTarget.classList.add('active');
             }
@@ -141,7 +135,7 @@
             displayCategories(categories);
         }
 
-        // --- XTREAM CODES LOGIK ---
+        // --- XTREAM CODES LOGIK (Mit CORS-Proxy) ---
         async function loginXtream() {
             let url = document.getElementById('xtreamUrl').value.trim();
             const username = document.getElementById('xtreamUser').value.trim();
@@ -153,18 +147,27 @@
             }
             if (!url.endsWith('/')) url += '/';
 
-            document.getElementById('playlistContainer').innerHTML = '<p style="text-align: center;">Lade Xtream Daten vom Server...</p>';
+            document.getElementById('playlistContainer').innerHTML = '<p style="text-align: center;">Lade Xtream Daten (via Proxy)...</p>';
+
+            // Wir nutzen einen öffentlichen CORS-Proxy, um Browser-Sperren zu umgehen
+            const proxyUrl = "https://corsproxy.io/?";
 
             try {
-                let liveRes = await fetch(`${url}player_api.php?username=${username}&password=${password}&action=get_live_streams`);
+                let liveApi = `${url}player_api.php?username=${username}&password=${password}&action=get_live_streams`;
+                let liveRes = await fetch(proxyUrl + encodeURIComponent(liveApi));
                 let liveStreams = await liveRes.json();
-                let liveCatRes = await fetch(`${url}player_api.php?username=${username}&password=${password}&action=get_live_categories`);
+
+                let liveCatApi = `${url}player_api.php?username=${username}&password=${password}&action=get_live_categories`;
+                let liveCatRes = await fetch(proxyUrl + encodeURIComponent(liveCatApi));
                 let liveCats = await liveCatRes.json();
                 activeData.live = formatXtreamContent(liveStreams, liveCats, `${url}live/${username}/${password}/`);
 
-                let vodRes = await fetch(`${url}player_api.php?username=${username}&password=${password}&action=get_vod_streams`);
+                let vodApi = `${url}player_api.php?username=${username}&password=${password}&action=get_vod_streams`;
+                let vodRes = await fetch(proxyUrl + encodeURIComponent(vodApi));
                 let vodStreams = await vodRes.json();
-                let vodCatRes = await fetch(`${url}player_api.php?username=${username}&password=${password}&action=get_vod_categories`);
+
+                let vodCatApi = `${url}player_api.php?username=${username}&password=${password}&action=get_vod_categories`;
+                let vodCatRes = await fetch(proxyUrl + encodeURIComponent(vodCatApi));
                 let vodCats = await vodCatRes.json();
                 activeData.movie = formatXtreamContent(vodStreams, vodCats, `${url}movie/${username}/${password}/`, true);
 
@@ -172,7 +175,7 @@
                 document.getElementById('mediaTypeSelect').value = 'live';
                 changeMediaType();
             } catch (e) {
-                alert("Fehler bei der Xtream Verbindung. (Evtl. CORS-Blockade im Browser?)");
+                alert("Fehler bei der Verbindung. Bitte URL (inkl. http:// und Port) und Zugangsdaten überprüfen.");
                 console.error(e);
                 document.getElementById('playlistContainer').innerHTML = '<p style="text-align: center; color: red;">Verbindung fehlgeschlagen.</p>';
             }
@@ -209,7 +212,7 @@
                 return;
             }
 
-            alert("Hinweis: Stalker-Portale nutzen Middleware-Handshakes, die im Browser meistens durch CORS blockiert werden. Für den vollen Stalker-Support empfiehlt sich meist eine Desktop-Umgebung. Versuche alternativ die Xtream-Zugangsdaten desselben Anbieters.");
+            alert("Hinweis: Stalker-Portale nutzen Middleware-Handshakes, die im Browser meistens durch CORS blockiert werden. Nutze stattdessen am besten den Xtream-Tab.");
         }
 
         function changeMediaType() {
@@ -268,6 +271,7 @@
     </script>
 </body>
 </html>
+
 
 
 
