@@ -14,31 +14,39 @@
 
     <h1>Mein Eigener IPTV Web Player</h1>
     
-    <!-- Eingabefeld für den Stream-Link (z.B. M3U oder direkter Stream) -->
-    <input type="text" id="streamUrl" placeholder="Hier Stream-Link (.m3u8 oder mp4) einfügen" style="width: 60%;">
+    <input type="text" id="streamUrl" placeholder="Hier Stream-Link (.m3u8) einfügen" style="width: 60%;">
     <button onclick="playStream()">Abspielen</button>
     <br><br>
 
-    <!-- Der Video-Player -->
     <video id="videoPlayer" controls autoplay></video>
 
-    <!-- Script zum Laden des Streams (nutzt HLS.js für Kompatibilität) -->
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script>
+        let hls = null; // Globale Variable für den HLS-Player
+
         function playStream() {
             var video = document.getElementById('videoPlayer');
             var url = document.getElementById('streamUrl').value;
             
+            // Alten HLS-Player zerstören, falls bereits einer lief
+            if (hls) {
+                hls.destroy();
+            }
+
             if (Hls.isSupported()) {
-                var hls = new Hls();
+                hls = new Hls();
                 hls.loadSource(url);
                 hls.attachMedia(video);
-                hls.on(Hls.Events.MANIFEST_PARSED,function() {
+                hls.on(Hls.Events.MANIFEST_PARSED, function() {
                     video.play();
                 });
+                hls.on(Hls.Events.ERROR, function(event, data) {
+                    console.error("HLS Fehler:", data);
+                });
             } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                // Für Safari / iOS
                 video.src = url;
-                video.addEventListener('loadedmetadata',function() {
+                video.addEventListener('loadedmetadata', function() {
                     video.play();
                 });
             }
